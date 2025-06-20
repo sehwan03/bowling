@@ -51,7 +51,6 @@
 
 <canvas id="lane" width="1575" height="400"></canvas>
 
-<!-- 이하 JavaScript는 이전 답변과 동일하게 유지 -->
 <script>
   const canvas = document.getElementById('lane');
   const ctx = canvas.getContext('2d');
@@ -184,7 +183,6 @@
     const speedFps = speedKmh * 0.911344;
     const baseTime = 60.5 / speedFps * 1000;
     const breakT = breakDist / 60.5;
-    const slowRange = 0.05;
 
     let i = 0;
     function drawStep() {
@@ -201,11 +199,9 @@
 
         const t = points[i].t;
         let speedFactor = 1.0;
-        if (t > breakT - slowRange && t < breakT + slowRange) {
-          speedFactor = 0.7;
-        } else if (t >= breakT + slowRange) {
-          const relativeT = (t - (breakT + slowRange)) / (1 - (breakT + slowRange));
-          speedFactor = 1.0 + relativeT * 1.0; // 점진적 증가 (최대 2배)
+        if (t >= breakT) {
+          const relativeT = (t - breakT) / (1 - breakT);
+          speedFactor = 1.0 + relativeT * 1.0; // 1.0 → 2.0
         }
 
         const interval = (baseTime / points.length) / speedFactor;
