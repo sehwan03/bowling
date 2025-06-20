@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>볼링 궤적 시각화</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 1650px;
+      margin: auto;
+      background: white;
+      color: black;
+    }
+    label { display: inline-block; width: 180px; }
+    input { width: 60px; margin-right: 20px; }
+    canvas {
+      border: 1px solid #ccc;
+      background: linear-gradient(to right, #eee 0%, #aaa 100%);
+      display: block;
+      margin-top: 20px;
+    }
+    button { margin-top: 10px; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+
+<h1>볼링 궤적 시각화</h1>
+
+<div>
+  <label for="stance">스탠딩 위치 (1~40 보드):</label>
+  <input id="stance" type="number" min="1" max="40" value="25" />
+</div>
+<div>
+  <label for="breakpoint">브레이크 포인트 (1~39 보드):</label>
+  <input id="breakpoint" type="number" min="1" max="39" value="10" />
+</div>
+<div>
+  <label for="distance">브레이크 거리 (0~60 ft):</label>
+  <input id="distance" type="number" min="0" max="60" value="41" />
+</div>
+<div>
+  <label for="speed">구속 (km/h):</label>
+  <input id="speed" type="number" min="1" max="100" value="24" />
+  <button id="startBtn">Start</button>
+</div>
+
+<canvas id="lane" width="1575" height="400"></canvas>
+
+<!-- 이하 JavaScript는 이전 답변과 동일하게 유지 -->
+<script>
+  const canvas = document.getElementById('lane');
+  const ctx = canvas.getContext('2d');
+
+  const stanceInput = document.getElementById('stance');
+  const breakInput = document.getElementById('breakpoint');
+  const distInput = document.getElementById('distance');
+  const speedInput = document.getElementById('speed');
+  const startBtn = document.getElementById('startBtn');
+
+  const MAX_FEET = 65;
+
+  function feetToX(ft) {
+    return (ft / MAX_FEET) * canvas.width;
+  }
+
+  function boardToY(board) {
+    const boardHeight = canvas.height / 40;
+    return canvas.height - ((board - 1) * boardHeight + boardHeight / 2);
+  }
+
+  function drawLane() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i <= MAX_FEET; i += 5) {
+      const x = feetToX(i);
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.strokeStyle = '#ccc';
+      ctx.stroke();
+      ctx.fillStyle = '#000';
+      ctx.font = '10px Arial';
+      ctx.fillText(i + 'ft', x + 2, 10);
+    }
+
+    for (let i = 1; i <= 40; i++) {
+      const y = boardToY(i);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.strokeStyle = i % 5 === 0 ? '#666' : '#ccc';
+      ctx.lineWidth = i % 5 === 0 ? 1.5 : 0.5;
+      ctx.stroke();
+      if (i % 2 === 1) {
+        ctx.fillStyle = '#000';
+        ctx.fillText(i, 2, y - 2);
+      }
+    }
+
+    const laneEnd = feetToX(60);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(laneEnd, 0);
+    ctx.lineTo(laneEnd, canvas.height);
+    ctx.stroke();
+  }
+
+  function drawPins() {
+    const pins = [
+      { board: 20, distance: 60 },
+      { board: 17, distance: 61 }, { board: 23, distance: 61 },
+      { board: 14, distance: 62 }, { board: 20, distance: 62 }, { board: 26, distance: 62 },
+      { board: 11, distance: 63 }, { board: 17, distance: 63 }, { board: 23, distance: 63 }, { board: 29, distance: 63 }
+    ];
+
+    ctx.fillStyle = 'red';
+    pins.forEach(pin => {
+      const x = feetToX(pin.distance);
+      const y = boardToY(pin.board);
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function drawTrajectoryStatic(stanceBoard, breakBoard, breakDist) {
+    const p0 = { x: 0, y: boardToY(stanceBoard) };
+    const b  = { x: feetToX(breakDist), y: boardToY(breakBoard) };
+    const p2 = { x: feetToX(60.5), y: boardToY(18.5) };
+
+    const p1 = {
+      x: 2 * b.x - 0.5 * p0.x - 0.5 * p2.x,
+      y: 2 * b.y - 0.5 * p0.y - 0.5 * p2.y
+    };
+
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    for (let t = 0; t <= 1.001; t += 0.02) {
+      const x = (1 - t) ** 2 * p0.x + 2 * (1 - t) * t * p1.x + t ** 2 * p2.x;
+      const y = (1 - t) ** 2 * p0.y + 2 * (1 - t) * t * p1.y + t ** 2 * p2.y;
+      ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'blue';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = 'green';
+    ctx.beginPath();
+    ctx.arc(p0.x, p0.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'orange';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function animateTrajectory(stanceBoard, breakBoard, breakDist, speedKmh) {
+    drawLane();
+    drawPins();
+
+    const p0 = { x: 0, y: boardToY(stanceBoard) };
+    const b  = { x: feetToX(breakDist), y: boardToY(breakBoard) };
+    const p2 = { x: feetToX(60.5), y: boardToY(18.5) };
+
+    const p1 = {
+      x: 2 * b.x - 0.5 * p0.x - 0.5 * p2.x,
+      y: 2 * b.y - 0.5 * p0.y - 0.5 * p2.y
+    };
+
+    const points = [];
+    for (let t = 0; t <= 1.001; t += 0.01) {
+      const x = (1 - t) ** 2 * p0.x + 2 * (1 - t) * t * p1.x + t ** 2 * p2.x;
+      const y = (1 - t) ** 2 * p0.y + 2 * (1 - t) * t * p1.y + t ** 2 * p2.y;
+      points.push({ x, y, t });
+    }
+
+    const speedFps = speedKmh * 0.911344;
+    const baseTime = 60.5 / speedFps * 1000;
+    const breakT = breakDist / 60.5;
+    const slowRange = 0.05;
+
+    let i = 0;
+    function drawStep() {
+      if (i === 0) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+      }
+
+      if (i < points.length) {
+        ctx.lineTo(points[i].x, points[i].y);
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        const t = points[i].t;
+        let speedFactor = 1.0;
+        if (t > breakT - slowRange && t < breakT + slowRange) {
+          speedFactor = 0.7;
+        } else if (t >= breakT + slowRange) {
+          const relativeT = (t - (breakT + slowRange)) / (1 - (breakT + slowRange));
+          speedFactor = 1.0 + relativeT * 1.0; // 점진적 증가 (최대 2배)
+        }
+
+        const interval = (baseTime / points.length) / speedFactor;
+        i++;
+        requestAnimationFrame(() => setTimeout(drawStep, interval));
+      } else {
+        ctx.fillStyle = 'green';
+        ctx.beginPath();
+        ctx.arc(p0.x, p0.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'orange';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    drawStep();
+  }
+
+  function update() {
+    const stance = Math.min(Math.max(parseInt(stanceInput.value), 1), 40);
+    const breakpoint = Math.min(Math.max(parseInt(breakInput.value), 1), 39);
+    const distance = Math.min(Math.max(parseInt(distInput.value), 0), 60);
+    drawLane();
+    drawTrajectoryStatic(stance, breakpoint, distance);
+    drawPins();
+  }
+
+  stanceInput.addEventListener('input', update);
+  breakInput.addEventListener('input', update);
+  distInput.addEventListener('input', update);
+
+  startBtn.addEventListener('click', () => {
+    const stance = Math.min(Math.max(parseInt(stanceInput.value), 1), 40);
+    const breakpoint = Math.min(Math.max(parseInt(breakInput.value), 1), 39);
+    const distance = Math.min(Math.max(parseInt(distInput.value), 0), 60);
+    const speed = Math.max(parseInt(speedInput.value), 1);
+    animateTrajectory(stance, breakpoint, distance, speed);
+  });
+
+  update();
+</script>
+
+</body>
+</html>
